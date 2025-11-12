@@ -1,7 +1,7 @@
 """Configuration and constants for network scanner"""
 
 # Version
-__version__ = "0.0.1"
+__version__ = "0.2.0"
 
 # Scanning configuration
 DEFAULT_CONCURRENCY = 5  # Max concurrent device scans
