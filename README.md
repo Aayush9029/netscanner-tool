@@ -6,7 +6,7 @@ A modern, async Python network scanner for macOS that discovers devices on your 
 
 ![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Version](https://img.shields.io/badge/version-0.0.1-orange.svg)
+![Version](https://img.shields.io/badge/version-0.2.0-orange.svg)
 
 </div>
 
@@ -25,10 +25,15 @@ A modern, async Python network scanner for macOS that discovers devices on your 
 ## Quick Start
 
 ```bash
+# Clone the repository
 git clone https://github.com/Aayush9029/netscanner-tool.git
 cd netscanner-tool
-uv pip install -e .
-uv run netscanner
+
+# Install the package
+pip install -e .
+
+# Run the scanner
+netscanner
 ```
 
 ## Requirements
@@ -38,6 +43,16 @@ uv run netscanner
 - nmap: `brew install nmap`
 
 ## Installation
+
+### Option 1: Using pip (Recommended)
+
+```bash
+git clone https://github.com/Aayush9029/netscanner-tool.git
+cd netscanner-tool
+pip install -e .
+```
+
+### Option 2: Using uv (Alternative)
 
 ```bash
 # Install uv
