@@ -1,98 +1,41 @@
-# Network Scanner
+<p align="center">
+  <img src="assets/icon.png" width="128" alt="netscanner">
+  <h1 align="center">netscanner</h1>
+  <p align="center">Find open ports on your local network without nmap</p>
+</p>
 
-Network Scanner is an async CLI utility for macOS that inspects your local network, discovers devices through the ARP table, and uses `nmap` to report their open ports in a Rich-powered UI.
+<p align="center">
+  <a href="https://github.com/Aayush9029/netscanner-tool/releases/latest"><img src="https://img.shields.io/github/v/release/Aayush9029/netscanner-tool" alt="Release"></a>
+  <a href="https://github.com/Aayush9029/netscanner-tool/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Aayush9029/netscanner-tool" alt="License"></a>
+</p>
 
-<div align="center">
-
-![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Version](https://img.shields.io/badge/version-0.2.0-orange.svg)
-
-</div>
-
-## Features
-
-- Discovers hosts via the system ARP table (no noisy network sweep required)
-- Async port discovery backed by `nmap` for accurate results
-- MAC-to-vendor lookup using the macvendors.com API
-- Rich terminal experience with progress indicators, banners, and summary tables
-- Configurable port lists and concurrency settings
-
-![Demo](./resources/demo.gif)
-
-## Prerequisites
-
-| Requirement | Notes |
-| --- | --- |
-| macOS 13+ | Uses the built-in `arp` command that ships with macOS |
-| Python 3.9+ | Any modern CPython release works; 3.12+ is recommended |
-| `nmap` | `brew install nmap` |
-| Internet access | Needed for vendor lookups (can be skipped with `--no-check`) |
-
-## Install & Run
-
-1. **Clone the repo**
-   ```bash
-   git clone https://github.com/Aayush9029/netscanner-tool.git
-   cd netscanner-tool
-   ```
-2. **Pick one of the workflows below.** Each keeps the install isolated so reproducing issues is trivial (e.g., create a `sandbox` folder and follow the same steps there when testing the README).
-
-### Option A: pip + `venv` (recommended)
+## Install
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e .          # Use `pip install .` if you do not need editable installs
+brew install aayush9029/tap/netscanner
 ```
 
-### Option B: uv
+Or tap first:
 
 ```bash
-uv venv                    # Creates .venv using the Python uv ships with
-source .venv/bin/activate
-uv pip install -e .        # Or use `uv pip install --system -e .` without a venv
+brew tap aayush9029/tap
+brew install netscanner
 ```
 
-> **Tip:** `uv pip install -e .` requires an active virtual environment. If you skip `uv venv`, pass `--system` so uv installs into the global interpreter instead.
-
-### Run the scanner
+## Usage
 
 ```bash
-netscanner --help
-netscanner                 # Basic scan (with dependency checks)
-netscanner --no-check      # Skip the nmap/arp checks if you know they exist
+netscanner                                  # smart prompt for this network
+netscanner scan 192.168.1.0/24             # scan a subnet
+netscanner scan 192.168.1.1 -p 22,80,443   # scan selected ports
+netscanner 192.168.1.10 --json             # script-friendly output
+netscanner --timeout 500ms -c 800          # tune scan speed
 ```
 
-## Usage Examples
-
-```bash
-netscanner --ports 22,80,443    # Scan only these ports
-netscanner --max-concurrent 10  # Raise concurrency for faster runs
-netscanner --no-check           # Skip dependency verification
-```
-
-By default the tool asks `nmap` to probe its top 1,000 ports, reports open ones, and prints a summary table with device counts and vendor info.
-
-## Troubleshooting
-
-- **`pip install -e .` complains about `setup.py`:** Upgrade pip (`python -m pip install --upgrade pip`) or use `pip install .` if you do not need editable installs.
-- **`uv pip install -e .` says "No virtual environment found":** Run `uv venv` first or re-run the install with `uv pip install --system -e .`.
-- **CLI exits because `nmap`/`arp` is missing:** Install `nmap` via Homebrew and rerun. Use `netscanner --no-check` to skip the pre-flight validation if you already know the tools are present.
-- **Vendor lookup fails:** The CLI will continue, but you can re-run later or disable lookups by working offline.
-
-## Development
-
-```bash
-python -m pip install --upgrade pip
-pip install -e .[dev]
-ruff check src
-pytest
-```
-
-Feel free to open issues or submit PRs for additional scanners, UI tweaks, or quality-of-life improvements.
+`netscanner` detects the active interface, suggests the current subnet, gateway,
+nearby hosts, and a manual target entry, then runs a native multi-threaded TCP
+port scan in a live terminal dashboard.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE).
+MIT
