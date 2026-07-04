@@ -10,6 +10,7 @@ import (
 
 	"github.com/Aayush9029/netscanner-tool/internal/discovery"
 	"github.com/Aayush9029/netscanner-tool/internal/scanner"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,11 +19,17 @@ import (
 type phase int
 
 const (
-	phaseSelect phase = iota
+	phaseDiscover phase = iota
+	phaseSelect
 	phaseManual
 	phaseScan
 	phaseDone
 )
+
+type discoverDoneMsg struct {
+	suggestions []discovery.Suggestion
+	err         error
+}
 
 type scanDoneMsg struct {
 	result scanner.Result
@@ -36,8 +43,10 @@ type model struct {
 	cursor      int
 	phase       phase
 	input       textinput.Model
+	spinner     spinner.Model
 	target      string
 	opts        scanner.Options
+	discover    discovery.Options
 
 	cancel context.CancelFunc
 	events <-chan scanner.Event
@@ -49,6 +58,7 @@ type model struct {
 	openHosts       map[string]map[int]string
 	lastOpen        string
 	result          scanner.Result
+	discoverErr     error
 	err             error
 	width           int
 	height          int
@@ -63,15 +73,33 @@ var (
 	errorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 )
 
+func RunDiscovery(discover discovery.Options, opts scanner.Options) error {
+	input := newTextInput()
+	spin := spinner.New()
+	spin.Spinner = spinner.Line
+	spin.Style = accentStyle
+
+	m := model{
+		phase:     phaseDiscover,
+		input:     input,
+		spinner:   spin,
+		opts:      opts,
+		discover:  discover,
+		openHosts: map[string]map[int]string{},
+	}
+	_, err := tea.NewProgram(m).Run()
+	return err
+}
+
 func Run(suggestions []discovery.Suggestion, opts scanner.Options) error {
-	input := textinput.New()
-	input.Placeholder = "192.168.1.0/24, router.local, 10.0.0.5"
-	input.CharLimit = 256
-	input.Width = 56
+	spin := spinner.New()
+	spin.Spinner = spinner.Line
+	spin.Style = accentStyle
 
 	m := model{
 		suggestions: suggestions,
-		input:       input,
+		input:       newTextInput(),
+		spinner:     spin,
 		opts:        opts,
 		openHosts:   map[string]map[int]string{},
 	}
@@ -80,10 +108,15 @@ func Run(suggestions []discovery.Suggestion, opts scanner.Options) error {
 }
 
 func RunScan(target string, opts scanner.Options) error {
+	spin := spinner.New()
+	spin.Spinner = spinner.Line
+	spin.Style = accentStyle
+
 	m := model{
 		phase:     phaseScan,
 		target:    target,
 		opts:      opts,
+		spinner:   spin,
 		openHosts: map[string]map[int]string{},
 	}
 	program := tea.NewProgram(m)
@@ -91,9 +124,20 @@ func RunScan(target string, opts scanner.Options) error {
 	return err
 }
 
+func newTextInput() textinput.Model {
+	input := textinput.New()
+	input.Placeholder = "192.168.1.0/24, router.local, 10.0.0.5"
+	input.CharLimit = 256
+	input.Width = 56
+	return input
+}
+
 func (m model) Init() tea.Cmd {
+	if m.phase == phaseDiscover {
+		return tea.Batch(m.spinner.Tick, m.startDiscovery())
+	}
 	if m.phase == phaseScan {
-		return m.startScan()
+		return tea.Batch(m.spinner.Tick, m.startScan())
 	}
 	return textinput.Blink
 }
@@ -115,6 +159,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.phase {
+	case phaseDiscover:
+		return m.updateDiscover(msg)
 	case phaseSelect:
 		return m.updateSelect(msg)
 	case phaseManual:
@@ -132,6 +178,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
+}
+
+func (m model) updateDiscover(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	case discoverDoneMsg:
+		m.discoverErr = msg.err
+		m.suggestions = msg.suggestions
+		if len(m.suggestions) == 0 {
+			m.suggestions = discovery.FallbackSuggestions()
+		}
+		m.phase = phaseSelect
+		return m, nil
+	}
+	return m, nil
 }
 
 func (m model) updateSelect(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -157,7 +221,7 @@ func (m model) updateSelect(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.target = selected.Target
 		m.phase = phaseScan
-		return m, m.startScan()
+		return m, tea.Batch(m.spinner.Tick, m.startScan())
 	}
 	return m, nil
 }
@@ -174,7 +238,7 @@ func (m model) updateManual(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = nil
 			m.target = target
 			m.phase = phaseScan
-			return m, m.startScan()
+			return m, tea.Batch(m.spinner.Tick, m.startScan())
 		}
 	}
 
@@ -185,6 +249,10 @@ func (m model) updateManual(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) updateScan(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	case scanEventMsg:
 		event := scanner.Event(msg)
 		if event.TotalChecks > 0 {
@@ -208,6 +276,13 @@ func (m model) updateScan(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+func (m model) startDiscovery() tea.Cmd {
+	return func() tea.Msg {
+		suggestions, err := discovery.SmartSuggestions(m.discover)
+		return discoverDoneMsg{suggestions: suggestions, err: err}
+	}
 }
 
 func (m *model) startScan() tea.Cmd {
@@ -248,6 +323,8 @@ func waitForScan(events <-chan scanner.Event, done <-chan scanDoneMsg) tea.Cmd {
 
 func (m model) View() string {
 	switch m.phase {
+	case phaseDiscover:
+		return screenStyle.Render(m.viewDiscover())
 	case phaseManual:
 		return screenStyle.Render(m.viewManual())
 	case phaseScan:
@@ -259,11 +336,26 @@ func (m model) View() string {
 	}
 }
 
+func (m model) viewDiscover() string {
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("netscanner"))
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("%s %s\n", m.spinner.View(), "looking up this network"))
+	b.WriteString(mutedStyle.Render("detecting active interface, gateway, nearby hosts, and useful scan targets"))
+	b.WriteString("\n\n")
+	b.WriteString(mutedStyle.Render("esc quit"))
+	return b.String()
+}
+
 func (m model) viewSelect() string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("netscanner"))
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("choose a suggested target"))
+	if m.discoverErr != nil {
+		b.WriteString("\n")
+		b.WriteString(warnStyle.Render(m.discoverErr.Error()))
+	}
 	b.WriteString("\n\n")
 
 	for i, suggestion := range m.suggestions {

@@ -145,24 +145,12 @@ func parseTimeout(raw string) (time.Duration, error) {
 }
 
 func cmdInteractive(opts cliOptions) error {
-	ui.Header("netscanner")
-	ui.Dimf("looking up this network")
-	fmt.Println()
-
-	suggestions, err := discovery.SmartSuggestions(discovery.Options{
+	return tui.RunDiscovery(discovery.Options{
 		ProbePorts:    config.ProbePorts(),
 		Concurrency:   config.DiscoveryConcurrency,
 		Timeout:       config.DiscoveryTimeout,
 		MaxProbeHosts: config.MaxDiscoveryHosts,
-	})
-	if err != nil {
-		ui.Warn(err.Error())
-	}
-	if len(suggestions) == 0 {
-		suggestions = discovery.FallbackSuggestions()
-	}
-
-	return tui.Run(suggestions, scanner.Options{
+	}, scanner.Options{
 		Ports:       opts.ports,
 		Concurrency: opts.concurrency,
 		Timeout:     opts.timeout,
