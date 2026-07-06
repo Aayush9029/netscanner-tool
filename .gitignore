@@ -4,3 +4,10 @@
 /coverage.out
 /*.test
 /*.prof
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
